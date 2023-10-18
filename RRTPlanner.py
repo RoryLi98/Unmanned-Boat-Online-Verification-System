@@ -91,5 +91,5 @@ class RRTPlanner:
             nodes.append(Node(len(nodes), new_pos, nearest.id))
             if len(nodes) % 100 == 0:
                 print("{} Nodes Searched".format(len(nodes)))
-            if self.dist(new_pos, goal) < (self.obs_radius_int/2):  # goal region
+            if self.dist(new_pos, goal) < (self.obs_radius_int/2):  # goal region  # self.obs_radius_int/2
                 return nodes

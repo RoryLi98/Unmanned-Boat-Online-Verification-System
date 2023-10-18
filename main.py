@@ -16,6 +16,20 @@ plt.rcParams["figure.autolayout"] = True
 plt.rcParams["keymap.save"].remove("s")
 
 
+from ConfigParseUtils import Config
+conf = Config()
+conf.LoadConf("setting.ini")
+g_VisualDistance = conf.ReadData("setting","VisualDistance",type='Int')
+g_SelfDirection = conf.ReadData("setting","SelfDirection",type='Bool')
+g_RelativeCoordinates = conf.ReadData("setting","RelativeCoordinates",type='Bool')
+g_TargetRadius = conf.ReadData("setting","TargetRadius",type='Float')
+g_CheckPointRadius = conf.ReadData("setting","CheckPointRadius",type='Float')
+
+import time
+
+current_time = time.strftime("%Y%m%d%H%M%S")
+# print(current_time)
+
 def transformation_matrix(x, y, theta):
     return np.array([
         [np.cos(theta), -np.sin(theta), x],
@@ -63,8 +77,8 @@ class DWAConfig:
 
         # 三个比例系数
         self.to_goal_cost_gain = 3  # 距离目标点的评价函数的权重系数
-        self.speed_cost_gain = 1  # 速度评价函数的权重系数
-        self.obstacle_cost_gain = 1.0  # 距离障碍物距离的评价函数的权重系数
+        self.speed_cost_gain = 2 # 速度评价函数的权重系数
+        self.obstacle_cost_gain = 1  # 距离障碍物距离的评价函数的权重系数
 
         self.tracking_dist = self.predict_time * self.max_speed  # 自动局部避障终点
         self.arrive_dist = 0.1
@@ -112,6 +126,7 @@ class Playground:
         self.lastStage = -1
         self.curStage = -1
         self.finalTarget = None
+        self.checkpoints = np.empty(shape=(0, 2))
 
     def run(self):
         while True:
@@ -119,9 +134,7 @@ class Playground:
                 if(self.curStage == -1 or self.curStage == self.lastStage):
                     self.lastStage = self.curStage
                     self.curStage += 1
-                    # print(self.curStage)
-                    # print(self.finalTarget)
-                    # print(self.temp_targetPos)
+
                     if(self.curStage == self.temp_targetPos.shape[0]-1):
                         self.planning_target = self.finalTarget
                         self.vplanner.passFlag = False
@@ -144,7 +157,15 @@ class Playground:
                 all_planning_obs = np.append(self.planning_obs, self.dynamic_planning_obs, axis=0)
                 # 选择全局路径规划中的点作为局部规划的终点
                 midpos = self.planning_path[self.vplanner_midpos_index]
+                # print(midpos)
                 [self.vx,self.vw], best_traj, all_traj, all_u = self.vplanner.plan([self.x, self.y, self.theta, self.vx, self.vw], self.dwaconfig, midpos, all_planning_obs)
+
+                # print(f"TarDis:{np.sqrt((self.x-self.planning_target[0]) ** 2 + (self.y-self.planning_target[1]) ** 2)}")
+                if (np.sqrt((self.x-self.planning_target[0]) ** 2 + (self.y-self.planning_target[1]) ** 2) < g_TargetRadius):
+                    plt.savefig(F'{current_time}-S.png')  # 保存为PNG格式
+                    break
+                else:
+                    plt.savefig(F'{current_time}-F.png')  # 保存为PNG格式
             else:
                 self.vx, self.vw = 0.0, 0.0
 
@@ -163,8 +184,10 @@ class Playground:
             if (self.temp_targetPos.shape[0] != 0):
                 # self.ax.plot(self.planning_target[0], self.planning_target[1], "o", markersize=30)
                 # self.ax.plot(self.finalTarget[0], self.finalTarget[1], "g+", markersize=30)
-                print(F"Chasing {self.planning_target}...")
-                if(np.sqrt((self.x-self.planning_target[0]) ** 2 + (self.y-self.planning_target[1]) ** 2) < 1):
+                # print(F"Chasing {self.planning_target}...") # 当前正在追踪哪个点
+                if(np.sqrt((self.x-self.planning_target[0]) ** 2 + (self.y-self.planning_target[1]) ** 2) < g_CheckPointRadius):
+                    self.checkpoints = np.append(self.checkpoints, [[self.planning_target[0],self.planning_target[1]]], axis=0)
+                    # print(self.checkpoints)
                     self.lastStage +=1
 
     def check_path(self):
@@ -211,10 +234,14 @@ class Playground:
         plt.plot([p1[0], p2[0], p3[0], p1[0]], [p1[1], p2[1], p3[1], p1[1]], "k-")
 
         if self.planning_target is not None:
-            self.ax.plot(self.planning_target[0], self.planning_target[1], "rx", markersize=20)
+            # self.ax.plot(self.planning_target[0], self.planning_target[1], "rx", markersize=20)
+            self.ax.plot(self.planning_target[0], self.planning_target[1], "ro", markersize=5)
 
         if self.finalTarget is not None:
-            self.ax.plot(self.finalTarget[0], self.finalTarget[1], "bx", markersize=30)
+            self.ax.plot(self.finalTarget[0], self.finalTarget[1], "gx", markersize=20)
+
+        for checkpointPos in self.checkpoints:
+            self.ax.plot(checkpointPos[0], checkpointPos[1], "bx", markersize=10)
 
         if len(all_traj) > 0:
             all_value = np.array(all_value, dtype=float)
@@ -242,7 +269,6 @@ class Playground:
             if self.startDraw:
                 plt.plot(self.x_traj, self.y_traj, "g-", markersize=10)
                 
-
         for obs in self.planning_obs:
             self.ax.add_artist(
                 plt.Circle((obs[0], obs[1]), self.planning_obs_radius, fill=True, color="blue"))
@@ -255,6 +281,7 @@ class Playground:
         self.ax.set_ylim(-10, 10)
 
         plt.pause(self.dt)  # 暂停最小单位时间
+
 
     def on_mousepress(self, event):
         if not event.dblclick:
@@ -295,8 +322,6 @@ class Playground:
 
                 ids = split_into_parts(self.planning_path.shape[0], 5)
                 for id in ids:
-                    print(self.planning_path.shape[0])
-                    print(ids)
                     self.temp_targetPos = np.append(self.temp_targetPos, [[self.planning_path[id][0], self.planning_path[id][1]]], axis=0)
 
 
@@ -311,8 +336,8 @@ class Playground:
 
 if __name__ == "__main__":
     planner = None
-    # planner = AStarPlanner(0.2)
-    planner = RRTPlanner(0.2)
+    planner = AStarPlanner(0.2)
+    # planner = RRTPlanner(0.2)
     vplanner = DWA()
 
     pg = Playground(planner, vplanner)

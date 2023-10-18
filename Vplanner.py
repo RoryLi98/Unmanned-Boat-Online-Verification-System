@@ -1,5 +1,31 @@
 import numpy as np
 
+import math
+def distance_to_target(theta, current_x, current_y, target_x, target_y):
+    # 计算直线的斜率
+    slope = math.tan(theta)
+
+    # 计算直线的截距
+    intercept = current_y - slope * current_x
+
+    # 计算目标点到直线的距离
+    distance = abs(slope * target_x - target_y + intercept) / math.sqrt(slope**2 + 1)
+
+    return distance
+def calculate_theta(current_x, current_y, target_x, target_y):
+    delta_x = target_x - current_x
+    delta_y = target_y - current_y
+
+    theta = math.atan2(delta_y, delta_x)
+
+    return theta
+def normalize_angle(theta):
+    while theta <= -math.pi:
+        theta += 2 * math.pi
+    while theta > math.pi:
+        theta -= 2 * math.pi
+    return theta
+
 class DWA():
     def __init__(self):
         self.passFlag = True
@@ -12,13 +38,22 @@ class DWA():
         all_ctral = []
         all_scores = []
         u = np.array([vw[0], vw[2]])
+
+        best1 = 0
+        best2 = 0
+
         for v in np.arange(vw[0], vw[1], info.v_reso):  # 遍历每个线速度和角速度
             for w in np.arange(vw[2], vw[3], info.yawrate_reso):
                 # cauculate traj for each given (v,w)
                 ctraj = self.traj_cauculate(x, [v, w], info)
                 # 计算评价函数
-                goal_score = info.to_goal_cost_gain * self.goal_evaluate(ctraj, midpos, x, passFlag = self.passFlag)
-                vel_score = info.speed_cost_gain * self.velocity_evaluate(ctraj, info)
+
+                temp0=self.goal_evaluate(ctraj, midpos, x, passFlag = self.passFlag)[0]+self.goal_evaluate(ctraj, midpos, x, passFlag = self.passFlag)[1]
+                temp1=self.goal_evaluate(ctraj, midpos, x, passFlag = self.passFlag)[0]
+                temp2=self.goal_evaluate(ctraj, midpos, x, passFlag = self.passFlag)[1]
+
+                goal_score = info.to_goal_cost_gain * temp0
+                vel_score = info.speed_cost_gain * self.velocity_evaluate(ctraj, midpos, info)
                 traj_score = info.obstacle_cost_gain * self.traj_evaluate(ctraj, planning_obs, info)
                     
                 # 可行路径不止一条，通过评价函数确定最佳路径
@@ -35,8 +70,12 @@ class DWA():
                     min_score = ctraj_score
                     u = np.array([v, w])  # 更新u存储最好的线速度v和角速度w
                     best_ctral = ctraj
+
+                    best1 =  temp1
+                    best2 =  temp2
                 all_ctral.append(ctraj)
                 all_scores.append(ctraj_score)
+        # print(best1)
 
         return u, best_ctral, all_ctral, all_scores
 
@@ -61,8 +100,6 @@ class DWA():
             xnew = self.motion_model(xnew, u, info.dt)
             ctraj = np.vstack([ctraj, xnew])
             time += info.dt
-
-        # print(ctraj)
         return ctraj
         
     # 产生速度空间  # x = [self.x,self.y,self.theta,self.vx,self.vw]
@@ -87,22 +124,23 @@ class DWA():
         # cauculate current pose to goal with euclidean distance  求轨迹最后一个点至终点的欧氏距离
         if (passFlag == True or (passFlag == False and (np.sqrt((x[0]-goal[0]) ** 2 + (x[1]-goal[1]) ** 2)) > 2.5)):
             minDistScore = 99999
-            minid = 99999
-            count = 0 
-            for trajPos in traj:
-                count +=1
-
-                goal_score = np.sqrt((trajPos[0]-goal[0]) ** 2 + (trajPos[1]-goal[1]) ** 2)
-                if goal_score < minDistScore:
-                    minid = count
-                    minDistScore = min(minDistScore, goal_score)
-            return minDistScore +0.01*minid
+            distanceSum = 0
+            goalDist_score = 0
+            for i, trajPos in enumerate(traj):
+                if (i != 0):
+                    distanceSum += np.sqrt((trajPos[0]-traj[i-1][0]) ** 2 + (trajPos[1]-traj[i-1][1]) ** 2)
+                dist = np.sqrt((trajPos[0]-goal[0]) ** 2 + (trajPos[1]-goal[1]) ** 2)
+                if (dist < minDistScore):
+                    minDistScore = min(minDistScore, dist)
+                    goalDist_score =  minDistScore 
+            # print(goalDist_score , abs(calculate_theta(x[0], x[1], goal[0], goal[1])-calculate_theta(x[0], x[1], traj[-1,0], traj[-1,1])))
+            return goalDist_score,20*abs(calculate_theta(x[0], x[1], goal[0], goal[1])-calculate_theta(x[0], x[1], traj[-1,0], traj[-1,1]))
         else:
-            goal_score = np.sqrt((traj[-1, 0]-goal[0]) ** 2 + (traj[-1, 1]-goal[1]) ** 2)
-            return goal_score
+            goalDist_score = np.sqrt((traj[-1,0]-goal[0]) ** 2 + (traj[-1,1]-goal[1]) ** 2)
+            return goalDist_score,0
 
     # 速度评价函数
-    def velocity_evaluate(self, traj, info):
+    def velocity_evaluate(self, traj, goal, info):
         # cauculate current velocty score
         vel_score = info.max_speed - traj[-1, 3]
         return vel_score
