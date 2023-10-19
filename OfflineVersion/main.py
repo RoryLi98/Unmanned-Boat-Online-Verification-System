@@ -15,124 +15,20 @@ plt.rcParams["figure.figsize"] = [8.0, 8.0]
 plt.rcParams["figure.autolayout"] = True
 plt.rcParams["keymap.save"].remove("s")
 
-import openai
-import numpy as np
-import json
-import re
-
-def find_two_floats(input_string):
-    # 去掉第一个 "(" 之前的内容
-    start_index = input_string.find('(')
-    if start_index != -1:
-        input_string = input_string[start_index + 1:]
-
-    # 去掉第一个 ")" 后面的内容
-    end_index = input_string.find(')')
-    if end_index != -1:
-        input_string = input_string[:end_index]
-    
-    # 去除空格
-    input_string = input_string.replace(" ", "")
-
-    # 找到逗号的位置
-    comma_index = input_string.index(",")
-
-    # 提取逗号前后的两个子字符串
-    num1_str = input_string[:comma_index]
-    num2_str = input_string[comma_index + 1:]
-
-    # 将子字符串转换为浮点数
-    num1 = float(num1_str)
-    num2 = float(num2_str)
-
-    return num1, num2
-
 
 from ConfigParseUtils import Config
 conf = Config()
 conf.LoadConf("setting.ini")
-g_VisualDistance = conf.ReadData("setting","VisualDistance",type='Int')             # 可视距离
-g_SelfDirection = conf.ReadData("setting","SelfDirection",type='Bool')              # 是否以船头方向为正方向
-g_RelativeCoordinates = conf.ReadData("setting","RelativeCoordinates",type='Bool')  # 是否用相对坐标
-g_TargetRadius = conf.ReadData("setting","TargetRadius",type='Float')               # 
+g_VisualDistance = conf.ReadData("setting","VisualDistance",type='Int')
+g_SelfDirection = conf.ReadData("setting","SelfDirection",type='Bool')
+g_RelativeCoordinates = conf.ReadData("setting","RelativeCoordinates",type='Bool')
+g_TargetRadius = conf.ReadData("setting","TargetRadius",type='Float')
 g_CheckPointRadius = conf.ReadData("setting","CheckPointRadius",type='Float')
-g_RoundPlace = conf.ReadData("setting","RoundPlace",type='Int')
-g_ObsRadius = conf.ReadData("setting","ObsRadius",type='Float')
-g_SafeRadius = 2*g_ObsRadius
-### 加载配置文件 获取API
-with open("config.json", "r") as f:
-    config = json.load(f)
-openai.api_base = ""
-openai.api_key = "sk-"
-chat_history = [
-    {
-        "role": "system",
-        "content": "---"
-    },
-    {
-        "role": "user",
-        "content": "---"
-    },
-    {
-        "role": "assistant",
-        "content": "---"
-    }
-]
-
-def ask(question):
-    chat_history.append(
-        {
-            "role": "user",
-            "content": question,
-        }
-    )
-    completion = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=chat_history,
-        temperature=0
-    )
-    chat_history.append(
-        {
-            "role": "assistant",
-            "content": completion.choices[0].message.content,
-        }
-    )
-    return chat_history[-1]["content"]
-
-first_instruction = \
-'''You are the command system of an unmanned boat, and your task is to direct the unmanned boat to avoid obstacles and complete the task objectives according to the environmental information returned by the unmanned boat perception system. If you understand your assignment, answer yes, otherwise answer no.'''
-findNextCheckpoint = \
-'''Next I will tell you the environmental information: \nCurrent coordinates of the ship: CURPOS Rescue target: TARPOS \nLocation of the reef: ENVIRONMENTSTATUS \nReef shape: a circle with a radius of OBSRADIUS.
-Your task is to direct the drone to the rescue target. However, in order to ensure the real-time decision, please only plan the next coordinate position of the drone each time.
-Please note that the distance between the coordinate and the reef coordinate should be greater than the radius of the reef, and plan the shortest path as far as possible.
-The answer format is as follows:
-The next unmanned boat position is:
-After giving the coordinates of the next position of the unmanned boat, please check whether the coordinates are more than SAFERADIUS away from the coordinates of each reef, if less than SAFERADIUS, please plan again'''
-findNextCheckpoint = findNextCheckpoint.replace("OBSRADIUS",str(g_ObsRadius))
-findNextCheckpoint = findNextCheckpoint.replace("SAFERADIUS",str(g_SafeRadius))
-
-# print(findNextCheckpoint)
-### 获取回复内容
-response = ask(first_instruction)
-print(first_instruction)
-print(response)
 
 import time
 
 current_time = time.strftime("%Y%m%d%H%M%S")
 # print(current_time)
-def rotate_coordinate(x, y, theta):
-    # 计算旋转后的坐标
-    relTheta = 90*math.pi/180 - theta
-    x_rotated = x * np.cos(relTheta) - y * np.sin(relTheta)
-    y_rotated = x * np.sin(relTheta) + y * np.cos(relTheta)
-    return x_rotated, y_rotated
-
-def inverse_rotate_coordinate(x, y, theta):
-    relTheta = theta - 90*math.pi/180
-    x_rotated = x * np.cos(relTheta) - y * np.sin(relTheta)
-    y_rotated = x * np.sin(relTheta) + y * np.cos(relTheta)
-    return x_rotated, y_rotated
 
 def transformation_matrix(x, y, theta):
     return np.array([
@@ -194,7 +90,7 @@ class Playground:
     def __init__(self, planner=None, vplanner=None):
         self.x = 0.0
         self.y = 0.0
-        self.theta = 0  # 0.0 90*math.pi/180
+        self.theta = 0.0
         self.vx = 0.0
         self.vw = 0.0
         self.x_traj = []
@@ -226,98 +122,27 @@ class Playground:
 
         #####################################
         self.temp_obs = [0, 0]
+        self.temp_targetPos = np.empty(shape=(0, 2))
         self.lastStage = -1
         self.curStage = -1
         self.finalTarget = None
         self.checkpoints = np.empty(shape=(0, 2))
-        self.arrivedCheckpoint = False
-        self.chasingFlag = False
 
     def run(self):
         while True:
-            if self.finalTarget is not None and self.chasingFlag and self.vplanner.passFlag:
-                if ((self.arrivedCheckpoint) or (self.planning_target is None)):
-                    # print(np.sqrt((self.x-self.finalTarget[0]) ** 2 + (self.y-self.finalTarget[1]) ** 2))
-                    # if (np.sqrt((self.x-self.finalTarget[0]) ** 2 + (self.y-self.finalTarget[1]) ** 2) < g_TargetRadius):
-                    #     plt.savefig(F'{current_time}-S.png')  # 保存为PNG格式
-                    #     break
-                    self.arrivedCheckpoint = False
+            if (self.temp_targetPos.shape[0] != 0 and self.curStage < self.temp_targetPos.shape[0]-1):
+                if(self.curStage == -1 or self.curStage == self.lastStage):
+                    self.lastStage = self.curStage
+                    self.curStage += 1
 
-                    seenObs = []
-                    global g_VisualDistance
-                    if(g_VisualDistance == -1):
-                        g_VisualDistance = float("Inf")
-                    
-                    for ob in self.planning_obs:
-                        if(np.sqrt((ob[0]-self.x) ** 2 + (ob[1]-self.y) ** 2) < g_VisualDistance):  #是否在可视距离内
-                            tmpOb = ob.copy()
-                            if(g_RelativeCoordinates):
-                                tmpOb[0] = round(tmpOb[0]-self.x, g_RoundPlace)
-                                tmpOb[1] = round(tmpOb[1]-self.y, g_RoundPlace)
-                            if(g_SelfDirection):
-                                if(not g_RelativeCoordinates):
-                                    tmpOb[0] = round(tmpOb[0]-self.x, g_RoundPlace)
-                                    tmpOb[1] = round(tmpOb[1]-self.y, g_RoundPlace)
-                                tmpOb[0],tmpOb[1] = rotate_coordinate(tmpOb[0], tmpOb[1], self.theta)
-                                # tmpOb[0],tmpOb[1] = inverse_rotate_coordinate(tmpOb[0], tmpOb[1], self.theta)
-                            seenObs += [tmpOb]
-                        # print(seenObs)
-
-                    tarPos = self.finalTarget.copy()
-                    if(g_RelativeCoordinates):
-                        tarPos[0] = round(tarPos[0]-self.x, g_RoundPlace)
-                        tarPos[1] = round(tarPos[1]-self.y, g_RoundPlace)
-                    if(g_SelfDirection):
-                        if(not g_RelativeCoordinates):
-                            tarPos[0] = round(tarPos[0]-self.x, g_RoundPlace)
-                            tarPos[1] = round(tarPos[1]-self.y, g_RoundPlace)
-                        tarPos[0],tarPos[1] = rotate_coordinate(tarPos[0], tarPos[1], self.theta)
-                    tarPos = F"({round(tarPos[0], g_RoundPlace)},{round(tarPos[1], g_RoundPlace)})"
-
-                    tmpFindNextCheckpoint = findNextCheckpoint
-                    if(g_RelativeCoordinates):
-                        curPos = "(0,0)"
-                    else:
-                        curPos = F"({round(self.x, g_RoundPlace)},{round(self.y, g_RoundPlace)})"
-                    
-                    EnvironmentStatus = ','.join('({:.{}f}, {:.{}f})'.format(point[0],g_RoundPlace, point[1],g_RoundPlace) for point in seenObs)
-
-                    # 替换字段
-                    tmpFindNextCheckpoint = tmpFindNextCheckpoint.replace("CURPOS",curPos)   #当前位置坐标
-                    tmpFindNextCheckpoint = tmpFindNextCheckpoint.replace("TARPOS",tarPos)   #目标位置坐标
-                    tmpFindNextCheckpoint = tmpFindNextCheckpoint.replace("ENVIRONMENTSTATUS",EnvironmentStatus) #障碍物位置坐标
-                    # print(tmpFindNextCheckpoint)
-                    # print(EnvironmentStatus)
-
-                    print(tmpFindNextCheckpoint)
-                    response = ask(tmpFindNextCheckpoint)
-                    print(response)
-                    print(type(response))
-                    # multi_pos = extract_floats_from_parentheses(response)
-                    # print(multi_pos)
-                    # x_set = multi_pos[0]
-                    # y_set = multi_pos[1]
-                    # print(F"Dest:{multi_pos}")
-
-                    pos_x,pos_y = find_two_floats(response)
-                    x_set = pos_x
-                    y_set = pos_y
-                    if(g_SelfDirection):
-                        x_set,y_set = inverse_rotate_coordinate(x_set, y_set, self.theta)
-                        if(not g_RelativeCoordinates):
-                            x_set = round(x_set+self.x, g_RoundPlace)
-                            y_set = round(y_set+self.y, g_RoundPlace)
-                    if(g_RelativeCoordinates):
-                        x_set = round(x_set+self.x, g_RoundPlace)
-                        y_set = round(y_set+self.y, g_RoundPlace)
-
-                    self.planning_target=[float(x_set),float(y_set)]
-                    if (np.sqrt((self.planning_target[0]-self.finalTarget[0]) ** 2 + (self.planning_target[1]-self.finalTarget[1]) ** 2) < 0.5*g_TargetRadius):
+                    if(self.curStage == self.temp_targetPos.shape[0]-1):
+                        self.planning_target = self.finalTarget
                         self.vplanner.passFlag = False
+                    else:
+                        self.planning_target = self.temp_targetPos[self.curStage]
                     px, py = planner.planning(self.planning_obs[:, 0], self.planning_obs[:, 1], Playground.planning_obs_radius + self.dwaconfig.robot_radius * self.dwaconfig.safety_ratio, self.x, self.y, self.planning_target[0], self.planning_target[1], -10, -10, 10, 10)
                     self.planning_path = np.vstack([px, py]).T
                     self.vplanner_midpos_index = None
-                    self.checkpoints = np.append(self.checkpoints, [[self.planning_target[0],self.planning_target[1]]], axis=0)
 
             if self.NEED_EXIT:
                 plt.close("all")
@@ -335,7 +160,8 @@ class Playground:
                 # print(midpos)
                 [self.vx,self.vw], best_traj, all_traj, all_u = self.vplanner.plan([self.x, self.y, self.theta, self.vx, self.vw], self.dwaconfig, midpos, all_planning_obs)
 
-                if (np.sqrt((self.x-self.finalTarget[0]) ** 2 + (self.y-self.finalTarget[1]) ** 2) < g_TargetRadius):
+                # print(f"TarDis:{np.sqrt((self.x-self.planning_target[0]) ** 2 + (self.y-self.planning_target[1]) ** 2)}")
+                if (np.sqrt((self.x-self.planning_target[0]) ** 2 + (self.y-self.planning_target[1]) ** 2) < g_TargetRadius):
                     plt.savefig(F'{current_time}-S.png')  # 保存为PNG格式
                     break
                 else:
@@ -355,10 +181,14 @@ class Playground:
             plt.cla()
             self.__draw(all_traj, all_u, best_traj=best_traj)
             
-            if (self.chasingFlag and self.planning_target is not None):
+            if (self.temp_targetPos.shape[0] != 0):
+                # self.ax.plot(self.planning_target[0], self.planning_target[1], "o", markersize=30)
+                # self.ax.plot(self.finalTarget[0], self.finalTarget[1], "g+", markersize=30)
                 # print(F"Chasing {self.planning_target}...") # 当前正在追踪哪个点
                 if(np.sqrt((self.x-self.planning_target[0]) ** 2 + (self.y-self.planning_target[1]) ** 2) < g_CheckPointRadius):
-                    self.arrivedCheckpoint = True
+                    self.checkpoints = np.append(self.checkpoints, [[self.planning_target[0],self.planning_target[1]]], axis=0)
+                    # print(self.checkpoints)
+                    self.lastStage +=1
 
     def check_path(self):
         if self.planning_path is None or self.planning_path.shape[0] == 0:
@@ -403,9 +233,9 @@ class Playground:
 
         plt.plot([p1[0], p2[0], p3[0], p1[0]], [p1[1], p2[1], p3[1], p1[1]], "k-")
 
-        # if self.planning_target is not None:
-        #     # self.ax.plot(self.planning_target[0], self.planning_target[1], "rx", markersize=20)
-        #     self.ax.plot(self.planning_target[0], self.planning_target[1], "ro", markersize=5)
+        if self.planning_target is not None:
+            # self.ax.plot(self.planning_target[0], self.planning_target[1], "rx", markersize=20)
+            self.ax.plot(self.planning_target[0], self.planning_target[1], "ro", markersize=5)
 
         if self.finalTarget is not None:
             self.ax.plot(self.finalTarget[0], self.finalTarget[1], "gx", markersize=20)
@@ -458,7 +288,7 @@ class Playground:
             if event.button == 1:  # 左键设置起点
                 self.x, self.y = event.xdata, event.ydata
             if event.button == 3:  # 右键设置终点
-                self.finalTarget = np.array([event.xdata, event.ydata])
+                self.planning_target = np.array([event.xdata, event.ydata])
             if event.button == 2:  # 单击中键添加单个静态障碍
                 self.add_obs(event.xdata, event.ydata)
                 self.temp_obs = [event.xdata, event.ydata]
@@ -482,19 +312,17 @@ class Playground:
             self.planning_path = None
             self.x_traj, self.y_traj = [], []
             self.vplanner_midpos_index = None
-            if self.finalTarget is not None and self.planner is not None:
+            if self.planning_target is not None and self.planner is not None:
                 print("do planning...")
-                # self.finalTarget = self.planning_target.copy()
-                self.chasingFlag = True
-                # Offline Version
-                # print(self.planning_obs.shape)
-                # px, py = planner.planning(self.planning_obs[:, 0], self.planning_obs[:, 1], Playground.planning_obs_radius+ self.dwaconfig.robot_radius * self.dwaconfig.safety_ratio, self.x, self.y, self.planning_target[0], self.planning_target[1], -10, -10, 10, 10)
-                # self.planning_path = np.vstack([px, py]).T
-                # print("pathLength : ", self.planning_path.shape[0])
+                self.finalTarget = self.planning_target.copy()
+                print(self.planning_obs.shape)
+                px, py = planner.planning(self.planning_obs[:, 0], self.planning_obs[:, 1], Playground.planning_obs_radius+ self.dwaconfig.robot_radius * self.dwaconfig.safety_ratio, self.x, self.y, self.planning_target[0], self.planning_target[1], -10, -10, 10, 10)
+                self.planning_path = np.vstack([px, py]).T
+                print("pathLength : ", self.planning_path.shape[0])
 
-                # ids = split_into_parts(self.planning_path.shape[0], 5)
-                # for id in ids:
-                #     self.temp_targetPos = np.append(self.temp_targetPos, [[self.planning_path[id][0], self.planning_path[id][1]]], axis=0)
+                ids = split_into_parts(self.planning_path.shape[0], 5)
+                for id in ids:
+                    self.temp_targetPos = np.append(self.temp_targetPos, [[self.planning_path[id][0], self.planning_path[id][1]]], axis=0)
 
 
     def set_exit(self):
