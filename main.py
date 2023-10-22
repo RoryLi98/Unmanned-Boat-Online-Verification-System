@@ -54,16 +54,19 @@ conf.LoadConf("setting.ini")
 g_VisualDistance = conf.ReadData("setting","VisualDistance",type='Int')             # 可视距离
 g_SelfDirection = conf.ReadData("setting","SelfDirection",type='Bool')              # 是否以船头方向为正方向
 g_RelativeCoordinates = conf.ReadData("setting","RelativeCoordinates",type='Bool')  # 是否用相对坐标
-g_TargetRadius = conf.ReadData("setting","TargetRadius",type='Float')               # 
+g_TargetRadius = conf.ReadData("setting","TargetRadius",type='Float')               #
 g_CheckPointRadius = conf.ReadData("setting","CheckPointRadius",type='Float')
 g_RoundPlace = conf.ReadData("setting","RoundPlace",type='Int')
 g_ObsRadius = conf.ReadData("setting","ObsRadius",type='Float')
 g_SafeRadius = 2*g_ObsRadius
+
 ### 加载配置文件 获取API
 with open("config.json", "r") as f:
     config = json.load(f)
-openai.api_base = ""
-openai.api_key = "sk-"
+
+openai.api_base = config["OPENAI_API_BASE"]
+openai.api_key = config["OPENAI_API_KEY"]
+
 chat_history = [
     {
         "role": "system",
@@ -103,13 +106,15 @@ first_instruction = \
 '''You are the command system of an unmanned boat, and your task is to direct the unmanned boat to avoid obstacles and complete the task objectives according to the environmental information returned by the unmanned boat perception system. If you understand your assignment, answer yes, otherwise answer no.'''
 findNextCheckpoint = \
 '''Next I will tell you the environmental information: \nCurrent coordinates of the ship: CURPOS Rescue target: TARPOS \nLocation of the reef: ENVIRONMENTSTATUS \nReef shape: a circle with a radius of OBSRADIUS.
-Your task is to direct the drone to the rescue target. However, in order to ensure the real-time decision, please only plan the next coordinate position of the drone each time.
-Please note that the distance between the coordinate and the reef coordinate should be greater than the radius of the reef, and plan the shortest path as far as possible.
-The answer format is as follows:
-The next unmanned boat position is:
-After giving the coordinates of the next position of the unmanned boat, please check whether the coordinates are more than SAFERADIUS away from the coordinates of each reef, if less than SAFERADIUS, please plan again'''
+Your task is to guide the unmanned boat to reach the 'target position' quickly and safely while maintaining a distance from each reef during the journey. Considering the limited effective sensing range of the unmanned boat, please provide the coordinates for the next step within a 10 radius. Each step should bring the boat closer to the target, while staying at least SAFERADIUS away from each reef.
+When the distance between the "current position" and the "target position" is less than SAFERADIUS, the "next position" is the "target position."
+Please provide the next coordinates in the following format:
+The next position is:
+
+After providing the next position coordinates, please verify by calculation. if the distance from each reef is greater than SAFERADIUS. If it is less than SAFERADIUS, please replan and provide new coordinate positions. Please calculate the distance between the "current position" and "target position". If it is less than SAFERADIUS, "the next position" is the "target position".'''
 findNextCheckpoint = findNextCheckpoint.replace("OBSRADIUS",str(g_ObsRadius))
 findNextCheckpoint = findNextCheckpoint.replace("SAFERADIUS",str(g_SafeRadius))
+
 
 # print(findNextCheckpoint)
 ### 获取回复内容
