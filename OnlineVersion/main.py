@@ -104,14 +104,23 @@ def ask(question):
 
 first_instruction = \
 '''You are the command system of an unmanned boat, and your task is to direct the unmanned boat to avoid obstacles and complete the task objectives according to the environmental information returned by the unmanned boat perception system. If you understand your assignment, answer yes, otherwise answer no.'''
+# findNextCheckpoint = \
+# '''Next I will tell you the environmental information: \nCurrent coordinates of the ship: CURPOS Rescue target: TARPOS \nLocation of the reef: ENVIRONMENTSTATUS \nReef shape: a circle with a radius of OBSRADIUS.
+# Your task is to guide the unmanned boat to reach the 'target position' quickly and safely while maintaining a distance from each reef during the journey. Considering the limited effective sensing range of the unmanned boat, please provide the coordinates for the next step within a 10 radius. Each step should bring the boat closer to the target, while staying at least SAFERADIUS away from each reef.
+# When the distance between the "current position" and the "target position" is less than SAFERADIUS, the "next position" is the "target position."
+# Please provide the next coordinates in the following format:
+# The next position is:
+
+# After providing the next position coordinates, please verify by calculation. if the distance from each reef is greater than SAFERADIUS. If it is less than SAFERADIUS, please replan and provide new coordinate positions. Please calculate the distance between the "current position" and "target position". If it is less than SAFERADIUS, "the next position" is the "target position".'''
+
 findNextCheckpoint = \
-'''Next I will tell you the environmental information: \nCurrent coordinates of the ship: CURPOS Rescue target: TARPOS \nLocation of the reef: ENVIRONMENTSTATUS \nReef shape: a circle with a radius of OBSRADIUS.
-Your task is to guide the unmanned boat to reach the 'target position' quickly and safely while maintaining a distance from each reef during the journey. Considering the limited effective sensing range of the unmanned boat, please provide the coordinates for the next step within a 10 radius. Each step should bring the boat closer to the target, while staying at least SAFERADIUS away from each reef.
-When the distance between the "current position" and the "target position" is less than SAFERADIUS, the "next position" is the "target position."
+'''Next I will tell you the environmental information(In the given coordinate, a unit of 1 represents 100 meters in reality): \nCurrent coordinates of the ship: CURPOS Rescue target: TARPOS \nLocation of the reef: ENVIRONMENTSTATUS \nReef shape: a circle with a radius of OBSRADIUS.
+Your task is to guide the unmanned boat to reach the 'target position' quickly and safely while maintaining a distance from each reef during the journey. Each step should bring the boat closer to the target, while staying at least 1 away from each reef. Note that The farthest distance we can reach in a single move is 3.
 Please provide the next coordinates in the following format:
 The next position is:
 
-After providing the next position coordinates, please verify by calculation. if the distance from each reef is greater than SAFERADIUS. If it is less than SAFERADIUS, please replan and provide new coordinate positions. Please calculate the distance between the "current position" and "target position". If it is less than SAFERADIUS, "the next position" is the "target position".'''
+After providing the next position coordinates, Please verify by calculation. If the distance from each reef is greater than 0.5. If it is less than 0.5, please give a new position and provide new coordinate positions. Please calculate the distance between "current position" and "target position". If it is less than 2 , "the next position" is "target position"'''
+
 findNextCheckpoint = findNextCheckpoint.replace("OBSRADIUS",str(g_ObsRadius))
 findNextCheckpoint = findNextCheckpoint.replace("SAFERADIUS",str(g_SafeRadius))
 
@@ -187,7 +196,7 @@ class DWAConfig:
         # 三个比例系数
         self.to_goal_cost_gain = 3  # 距离目标点的评价函数的权重系数
         self.speed_cost_gain = 2 # 速度评价函数的权重系数
-        self.obstacle_cost_gain = 1  # 距离障碍物距离的评价函数的权重系数
+        self.obstacle_cost_gain = 0  # 距离障碍物距离的评价函数的权重系数
 
         self.tracking_dist = self.predict_time * self.max_speed  # 自动局部避障终点
         self.arrive_dist = 0.1
@@ -297,7 +306,7 @@ class Playground:
                     print(tmpFindNextCheckpoint)
                     response = ask(tmpFindNextCheckpoint)
                     print(response)
-                    print(type(response))
+                    # print(type(response))
                     # multi_pos = extract_floats_from_parentheses(response)
                     # print(multi_pos)
                     # x_set = multi_pos[0]
