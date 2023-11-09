@@ -69,6 +69,7 @@ class Playground:
 
         self.dwaconfigs = []
         self.dts = []
+        init_list = []
         for i in range(0, v_num):
             self.dwaconfigs.append(DWAConfig(self.planning_obs_radius))
             self.dts.append(self.dwaconfigs[i].dt)
@@ -77,8 +78,9 @@ class Playground:
             self.theta.append(0.0)
             self.vx.append(0.0)
             self.vw.append(0.0)
-            self.x_traj.append([])
-            self.y_traj.append([])
+            init_list.append([])
+        self.x_traj = init_list
+        self.y_traj = init_list
 
         self.fig, self.ax = plt.subplots()
 
@@ -269,12 +271,12 @@ class Playground:
 
     def on_mousepress(self, event):
         if not event.dblclick:
-            if event.button == 1:  # 左键设置起点
-                if len(self.x) < self.v_num:
-                    self.x.append(event.xdata)
-                    self.y.append(event.ydata)
-                else:
-                    pass
+            # if event.button == 1:  # 左键设置起点
+            #     if len(self.x) < self.v_num:
+            #         self.x.append(event.xdata)
+            #         self.y.append(event.ydata)
+            #     else:
+            #         pass
                 # self.x, self.y = event.xdata, event.ydata
             if event.button == 3:  # 右键设置终点
                 self.planning_target = np.array([event.xdata, event.ydata])
@@ -313,6 +315,12 @@ class Playground:
                     planning_path = np.vstack([px, py]).T
                     self.planning_paths[v_id] = planning_path
                     print(v_id, "pathLength : ", planning_path.shape[0])
+        if event.key in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]:  # 添加无人艇
+            if int(event.key) in range(0, self.v_num):
+                self.x[int(event.key)], self.y[int(event.key)] = event.xdata, event.ydata
+
+        # if event.key in range(0, self.v_num):  # 添加动态障碍
+        #     self.x[event.key], self.y[event.key] = event.xdata, event.ydata
 
     def set_exit(self):
         self.NEED_EXIT = True
