@@ -57,19 +57,17 @@ class DWAConfig:
 class Playground:
     planning_obs_radius = 0.5
 
-    def __init__(self, planner=None, vplanner=None, v_num=2):
+    def __init__(self, planner=None, vplanner=None, v_num=3):
         self.v_num = v_num
         self.x = []
         self.y = []
         self.theta = []
         self.vx = []
         self.vw = []
-        self.x_traj = []
-        self.y_traj = []
 
         self.dwaconfigs = []
         self.dts = []
-        init_list = []
+        self.init_list = []
         for i in range(0, v_num):
             self.dwaconfigs.append(DWAConfig(self.planning_obs_radius))
             self.dts.append(self.dwaconfigs[i].dt)
@@ -78,9 +76,9 @@ class Playground:
             self.theta.append(0.0)
             self.vx.append(0.0)
             self.vw.append(0.0)
-            init_list.append([])
-        self.x_traj = init_list
-        self.y_traj = init_list
+            self.init_list.append([])
+        self.x_traj = self.init_list
+        self.y_traj = self.init_list
 
         self.fig, self.ax = plt.subplots()
 
@@ -190,7 +188,7 @@ class Playground:
             midindex = self.vplanner_midpos_indexs[v_id]
             while True:
                 midpos = self.planning_paths[v_id][midindex]
-                dist = np.hypot(self.x - midpos[0], self.y - midpos[1])
+                dist = np.hypot(self.x[v_id] - midpos[0], self.y[v_id] - midpos[1])
                 if dist > self.dwaconfigs[v_id].tracking_dist:
                     break
                 if midindex + 1 == self.planning_paths[v_id].shape[0]:
@@ -301,7 +299,7 @@ class Playground:
         if event.key == " ":  # 空格
             self.startDraw = True
 
-            self.x_traj, self.y_traj = [[]], [[]]
+            self.x_traj, self.y_traj = self.init_list, self.init_list
             for v_id in range(0, self.v_num):
                 self.planning_paths += [None]
                 self.vplanner_midpos_indexs += [None]
