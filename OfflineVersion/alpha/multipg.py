@@ -127,8 +127,8 @@ class Playground:
                 all_u = []
                 best_traj = None
                 if self.vplanner_midpos_indexs[v_id] >= 0:
-                    # if v_id == 0:
-                    self.UpdateDynamicObstacle()
+                    if v_id == 0:
+                        self.UpdateDynamicObstacle()
                     other_vs = np.empty(shape=(0, 2))
                     for other_v_id in range(0, self.v_num):
                         if other_v_id != v_id:
@@ -336,5 +336,5 @@ if __name__ == "__main__":
     planner = RRTPlanner(0.2)
     vplanner = DWA()
 
-    pg = Playground(planner, vplanner, 2)
+    pg = Playground(planner, vplanner, 3)
     pg.run()
