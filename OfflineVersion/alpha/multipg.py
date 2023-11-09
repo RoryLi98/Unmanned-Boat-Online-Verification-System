@@ -7,6 +7,7 @@ from AStarPlanner import AStarPlanner
 from RRTPlanner import RRTPlanner
 from Vplanner import DWA
 from random import randint, uniform
+import copy
 
 # from planner import AStarPlanner,RRTPlanner
 # from localplanner import dwa
@@ -67,7 +68,7 @@ class Playground:
 
         self.dwaconfigs = []
         self.dts = []
-        self.init_list = []
+        self.init_traj = []
         for i in range(0, v_num):
             self.dwaconfigs.append(DWAConfig(self.planning_obs_radius))
             self.dts.append(self.dwaconfigs[i].dt)
@@ -76,9 +77,9 @@ class Playground:
             self.theta.append(0.0)
             self.vx.append(0.0)
             self.vw.append(0.0)
-            self.init_list.append([])
-        self.x_traj = self.init_list
-        self.y_traj = self.init_list
+            self.init_traj.append([])
+        self.x_traj = copy.deepcopy(self.init_traj)
+        self.y_traj = copy.deepcopy(self.init_traj)
 
         self.fig, self.ax = plt.subplots()
 
@@ -299,7 +300,7 @@ class Playground:
         if event.key == " ":  # 空格
             self.startDraw = True
 
-            self.x_traj, self.y_traj = self.init_list, self.init_list
+            self.x_traj, self.y_traj = copy.deepcopy(self.init_traj), copy.deepcopy(self.init_traj)
             for v_id in range(0, self.v_num):
                 self.planning_paths += [None]
                 self.vplanner_midpos_indexs += [None]
