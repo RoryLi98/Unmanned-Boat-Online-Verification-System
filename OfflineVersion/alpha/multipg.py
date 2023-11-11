@@ -138,6 +138,10 @@ class Playground:
                     midpos = self.planning_paths[v_id][self.vplanner_midpos_indexs[v_id]]
                     [self.vx[v_id], self.vw[v_id]], best_traj, all_traj, all_u = self.vplanner.plan(
                         [self.x[v_id], self.y[v_id], self.theta[v_id], self.vx[v_id], self.vw[v_id]], self.dwaconfigs[v_id], midpos, all_planning_obs)
+                    if best_traj is None:
+                        print("Broken boat: ", v_id)
+                        time.sleep(100)
+                        self.NEED_EXIT = True
                 else:
                     self.vx[v_id], self.vw[v_id] = 0.0, 0.0
 
@@ -279,7 +283,7 @@ class Playground:
                 # self.x, self.y = event.xdata, event.ydata
             if event.button == 3:  # 右键设置终点
                 self.planning_target = np.array([event.xdata, event.ydata])
-            if event.button == 2:  # 单击中键添加单个静态障碍
+            if event.button == 1:  # 单击左键添加单个静态障碍
                 self.add_obs(event.xdata, event.ydata)
                 self.temp_obs = [event.xdata, event.ydata]
 
