@@ -311,7 +311,20 @@ class Playground:
             if self.planning_target is not None and self.planner is not None:
                 print("do planning...")
                 for v_id in range(0, self.v_num):
-                    px, py = planner.planning(self.planning_obs[:, 0], self.planning_obs[:, 1],
+                    all_obsx = copy.deepcopy(self.planning_obs[:, 0])
+                    all_obsy = copy.deepcopy(self.planning_obs[:, 1])
+                    if v_id > 0:
+                        pre_path = []
+                        for pre in range(0, v_id):
+                            pre_path.append(self.planning_paths[pre][0:-100])
+                        # print("pre_path", pre_path)
+                        for pre_poss in pre_path:
+                            for pre_pos in pre_poss:
+                                print("pre_pos[0]:", pre_pos[0])
+                                print("all_obsx:", all_obsx)
+                                all_obsx = np.insert(all_obsx, -1, pre_pos[0], axis=0)
+                                all_obsy = np.insert(all_obsy, -1, pre_pos[1], axis=0)
+                    px, py = planner.planning(all_obsx, all_obsy,
                                               Playground.planning_obs_radius + self.dwaconfigs[v_id].robot_radius * self.dwaconfigs[v_id].safety_ratio,
                                               self.x[v_id], self.y[v_id], self.planning_target[0], self.planning_target[1], -10, -10,
                                               10, 10)
