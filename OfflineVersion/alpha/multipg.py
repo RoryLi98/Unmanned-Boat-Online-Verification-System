@@ -361,8 +361,8 @@ class Playground:
 
 if __name__ == "__main__":
     planner = None
-    # planner = AStarPlanner(0.2)
-    planner = RRTPlanner(0.2)
+    planner = AStarPlanner(0.2)
+    # planner = RRTPlanner(0.2)
     vplanner = DWA()
 
     pg = Playground(planner, vplanner, 3)
