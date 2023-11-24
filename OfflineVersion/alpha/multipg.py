@@ -317,7 +317,13 @@ class Playground:
                     planning_path = np.vstack([px, py]).T
                     self.planning_paths[v_id] = planning_path
                     print(v_id, "pathLength : ", planning_path.shape[0])
-                    
+# <<<<<<< Updated upstream
+#
+# =======
+#                     # print("planning_path: ", planning_path)
+#                     # print("planning_obs: ", self.planning_obs)
+#                     # print("planning_obs[:, 0]", self.planning_obs[:, 0])
+# >>>>>>> Stashed changes
         if event.key in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]:  # 添加无人艇
             if int(event.key) in range(0, self.v_num):
                 self.x[int(event.key)], self.y[int(event.key)] = event.xdata, event.ydata
