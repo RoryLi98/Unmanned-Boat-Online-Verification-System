@@ -138,6 +138,10 @@ class Playground:
                     midpos = self.planning_paths[v_id][self.vplanner_midpos_indexs[v_id]]
                     [self.vx[v_id], self.vw[v_id]], best_traj, all_traj, all_u = self.vplanner.plan(
                         [self.x[v_id], self.y[v_id], self.theta[v_id], self.vx[v_id], self.vw[v_id]], self.dwaconfigs[v_id], midpos, all_planning_obs)
+                    if best_traj is None:
+                        print("Broken boat: ", v_id)
+                        time.sleep(100)
+                        self.NEED_EXIT = True
                 else:
                     self.vx[v_id], self.vw[v_id] = 0.0, 0.0
 
@@ -280,8 +284,10 @@ class Playground:
             if event.button == 3:  # 右键设置终点
                 self.planning_target = np.array([event.xdata, event.ydata])
                 
+            if event.button == 1:  # 单击左键添加单个静态障碍
                 for i in range(0, self.v_num):
                     self.theta[i] = math.atan2(self.planning_target[1]-self.x[i], self.planning_target[0]-self.y[i])
+                    
             if event.button == 2:  # 单击中键添加单个静态障碍
                 self.add_obs(event.xdata, event.ydata)
                 self.temp_obs = [event.xdata, event.ydata]
@@ -310,7 +316,20 @@ class Playground:
             if self.planning_target is not None and self.planner is not None:
                 print("do planning...")
                 for v_id in range(0, self.v_num):
-                    px, py = planner.planning(self.planning_obs[:, 0], self.planning_obs[:, 1],
+                    all_obsx = copy.deepcopy(self.planning_obs[:, 0])
+                    all_obsy = copy.deepcopy(self.planning_obs[:, 1])
+                    if v_id > 0:
+                        pre_path = []
+                        for pre in range(0, v_id):
+                            pre_path.append(self.planning_paths[pre][0:-100])
+                        # print("pre_path", pre_path)
+                        for pre_poss in pre_path:
+                            for pre_pos in pre_poss:
+                                print("pre_pos[0]:", pre_pos[0])
+                                print("all_obsx:", all_obsx)
+                                all_obsx = np.insert(all_obsx, -1, pre_pos[0], axis=0)
+                                all_obsy = np.insert(all_obsy, -1, pre_pos[1], axis=0)
+                    px, py = planner.planning(all_obsx, all_obsy,
                                               Playground.planning_obs_radius + self.dwaconfigs[v_id].robot_radius * self.dwaconfigs[v_id].safety_ratio,
                                               self.x[v_id], self.y[v_id], self.planning_target[0], self.planning_target[1], -10, -10,
                                               10, 10)

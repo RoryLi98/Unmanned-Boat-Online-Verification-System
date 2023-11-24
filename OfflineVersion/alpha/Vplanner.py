@@ -35,6 +35,8 @@ class DWA():
                     best_ctral = ctraj
                 all_ctral.append(ctraj)
                 all_scores.append(ctraj_score)
+        if 'u' not in locals():
+            return [0, 0], None, all_ctral, all_scores
 
         return u, best_ctral, all_ctral, all_scores
 
