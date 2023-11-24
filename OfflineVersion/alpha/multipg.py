@@ -284,16 +284,16 @@ class Playground:
             if event.button == 3:  # 右键设置终点
                 self.planning_target = np.array([event.xdata, event.ydata])
                 
-            if event.button == 1:  # 单击左键添加单个静态障碍
+            if event.button == 2:  # 单击中键修改角度
                 for i in range(0, self.v_num):
                     self.theta[i] = math.atan2(self.planning_target[1]-self.x[i], self.planning_target[0]-self.y[i])
                     
-            if event.button == 2:  # 单击中键添加单个静态障碍
+            if event.button == 1:  # 单击左键添加单个静态障碍
                 self.add_obs(event.xdata, event.ydata)
                 self.temp_obs = [event.xdata, event.ydata]
 
     def on_mousemove(self, event):
-        if hasattr(event, "button") and event.button == 2:  # 持续的中键添加连续静态障碍
+        if hasattr(event, "button") and event.button == 1:  # 持续的左键添加连续静态障碍
             dx = event.xdata - self.temp_obs[0]
             dy = event.ydata - self.temp_obs[1]
             if np.hypot(dx, dy) > self.planning_obs_radius * 0.8:  # 障碍点之间的距离不能小于0.8的半径
@@ -315,6 +315,7 @@ class Playground:
                 self.vplanner_midpos_indexs += [None]
             if self.planning_target is not None and self.planner is not None:
                 print("do planning...")
+                # 将之前无人艇的路径加入障碍物
                 for v_id in range(0, self.v_num):
                     all_obsx = copy.deepcopy(self.planning_obs[:, 0])
                     all_obsy = copy.deepcopy(self.planning_obs[:, 1])
@@ -325,10 +326,14 @@ class Playground:
                         # print("pre_path", pre_path)
                         for pre_poss in pre_path:
                             for pre_pos in pre_poss:
-                                print("pre_pos[0]:", pre_pos[0])
-                                print("all_obsx:", all_obsx)
-                                all_obsx = np.insert(all_obsx, -1, pre_pos[0], axis=0)
-                                all_obsy = np.insert(all_obsy, -1, pre_pos[1], axis=0)
+                                # print("pre_pos[0]:", pre_pos[0])
+                                # print("all_obsx:", all_obsx)
+                                if len(all_obsx) == 0:
+                                    all_obsx = np.insert(all_obsx, 0, pre_pos[0], axis=0)
+                                    all_obsy = np.insert(all_obsy, 0, pre_pos[1], axis=0)
+                                else:
+                                    all_obsx = np.insert(all_obsx, -1, pre_pos[0], axis=0)
+                                    all_obsy = np.insert(all_obsy, -1, pre_pos[1], axis=0)
                     px, py = planner.planning(all_obsx, all_obsy,
                                               Playground.planning_obs_radius + self.dwaconfigs[v_id].robot_radius * self.dwaconfigs[v_id].safety_ratio,
                                               self.x[v_id], self.y[v_id], self.planning_target[0], self.planning_target[1], -10, -10,
@@ -336,13 +341,6 @@ class Playground:
                     planning_path = np.vstack([px, py]).T
                     self.planning_paths[v_id] = planning_path
                     print(v_id, "pathLength : ", planning_path.shape[0])
-# <<<<<<< Updated upstream
-#
-# =======
-#                     # print("planning_path: ", planning_path)
-#                     # print("planning_obs: ", self.planning_obs)
-#                     # print("planning_obs[:, 0]", self.planning_obs[:, 0])
-# >>>>>>> Stashed changes
         if event.key in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]:  # 添加无人艇
             if int(event.key) in range(0, self.v_num):
                 self.x[int(event.key)], self.y[int(event.key)] = event.xdata, event.ydata
@@ -363,8 +361,8 @@ class Playground:
 
 if __name__ == "__main__":
     planner = None
-    planner = AStarPlanner(0.2)
-    # planner = RRTPlanner(0.2)
+    # planner = AStarPlanner(0.2)
+    planner = RRTPlanner(0.2)
     vplanner = DWA()
 
     pg = Playground(planner, vplanner, 3)
