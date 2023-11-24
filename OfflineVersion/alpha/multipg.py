@@ -29,8 +29,8 @@ class DWAConfig:
 
     def __init__(self, obs_radius):
         self.obs_radius = obs_radius
-        self.robot_radius = 0.5  # 艇半径
-        self.safety_ratio = 1.5  # RRT和DWA的避障距离 = 障碍物半径 + 艇半径*安全距离设置倍数
+        self.robot_radius = 0.5 # 艇半径
+        self.safety_ratio = 0.8 # RRT和DWA的避障距离 = 障碍物半径 + 艇半径*安全距离设置倍数
         self.dt = 0.1  # [s] Time tick for motion prediction
 
         self.max_speed = 1.5  # [m/s] 最大线速度
@@ -44,12 +44,12 @@ class DWAConfig:
         self.yawrate_reso = self.max_dyawrate * self.dt / 10.0  # [rad/s] 角速度增加的步长
 
         # 模拟轨迹的持续时间
-        self.predict_time = 2.5  # [s]
+        self.predict_time = 2.5  # [s]  
 
         # 三个比例系数
-        self.to_goal_cost_gain = 1.0  # 距离目标点的评价函数的权重系数
-        self.speed_cost_gain = 0.7  # 速度评价函数的权重系数
-        self.obstacle_cost_gain = 5.0  # 距离障碍物距离的评价函数的权重系数
+        self.to_goal_cost_gain = 3  # 距离目标点的评价函数的权重系数
+        self.speed_cost_gain = 2 # 速度评价函数的权重系数
+        self.obstacle_cost_gain = 1  # 距离障碍物距离的评价函数的权重系数
 
         self.tracking_dist = self.predict_time * self.max_speed  # 自动局部避障终点
         self.arrive_dist = 0.1
@@ -283,7 +283,12 @@ class Playground:
                 # self.x, self.y = event.xdata, event.ydata
             if event.button == 3:  # 右键设置终点
                 self.planning_target = np.array([event.xdata, event.ydata])
+                
             if event.button == 1:  # 单击左键添加单个静态障碍
+                for i in range(0, self.v_num):
+                    self.theta[i] = math.atan2(self.planning_target[1]-self.x[i], self.planning_target[0]-self.y[i])
+                    
+            if event.button == 2:  # 单击中键添加单个静态障碍
                 self.add_obs(event.xdata, event.ydata)
                 self.temp_obs = [event.xdata, event.ydata]
 
@@ -331,9 +336,18 @@ class Playground:
                     planning_path = np.vstack([px, py]).T
                     self.planning_paths[v_id] = planning_path
                     print(v_id, "pathLength : ", planning_path.shape[0])
+# <<<<<<< Updated upstream
+#
+# =======
+#                     # print("planning_path: ", planning_path)
+#                     # print("planning_obs: ", self.planning_obs)
+#                     # print("planning_obs[:, 0]", self.planning_obs[:, 0])
+# >>>>>>> Stashed changes
         if event.key in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]:  # 添加无人艇
             if int(event.key) in range(0, self.v_num):
                 self.x[int(event.key)], self.y[int(event.key)] = event.xdata, event.ydata
+                if self.planning_target is not None:
+                    self.theta[int(event.key)] = math.atan2(self.planning_target[1]-event.ydata, self.planning_target[0]-event.xdata)
 
         # if event.key in range(0, self.v_num):  # 添加动态障碍
         #     self.x[event.key], self.y[event.key] = event.xdata, event.ydata
@@ -349,8 +363,8 @@ class Playground:
 
 if __name__ == "__main__":
     planner = None
-    # planner = AStarPlanner(0.2)
-    planner = RRTPlanner(0.2)
+    planner = AStarPlanner(0.2)
+    # planner = RRTPlanner(0.2)
     vplanner = DWA()
 
     pg = Playground(planner, vplanner, 3)
